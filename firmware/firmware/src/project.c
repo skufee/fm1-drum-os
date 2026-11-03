@@ -384,6 +384,23 @@ static int proj_from_v1(project_t *q, const project_v1_t *v1, int n)
     return 1;
 }
 
+/* Read-only identity check. Numeric FUN magics are little-endian on flash
+ * (e.g. FUN6 is bytes 36 4e 55 46), not an ASCII "FUN6" prefix. Do not import
+ * into a live/staging project merely to label a diagnostic report. */
+static int project_legacy_wire_format(const void *wire, uint32_t n)
+{
+    static const uint32_t sizes[6] = {sizeof(project_v1_t),sizeof(project_v2_t),
+        sizeof(project_v3_t),sizeof(project_v4_t),sizeof(project_v5_t),sizeof(project_t)};
+    uint32_t magic,size,sum,v;
+    if(!wire||n<12u)return 0;
+    memcpy(&magic,wire,4);memcpy(&size,(const uint8_t *)wire+4,4);
+    for(v=1;v<=6u;v++)if(magic==PROJ_MAGIC_V1+v-1u&&n==sizes[v-1u]&&size==n) {
+        memcpy(&sum,(const uint8_t *)wire+n-4u,4);
+        return sum==proj_hash(wire,n-4u)?(int)v:0;
+    }
+    return 0;
+}
+
 /* n bytes of a stored project (any format) -> slot q as format 5; 0 = not a project */
 static int proj_import(project_t *q, const void *b, int n)
 {

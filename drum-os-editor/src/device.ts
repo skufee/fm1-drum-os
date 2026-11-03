@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import {MidiTransport,OP,concat,le16,le32,u16,u32,i32,ascii,verifyProjectWire,crc32,SAVE_ERRORS} from './protocol.ts';
+import {parseProjectDiagnosis,parseSampleDiagnosis,verifyProjectBackup,verifySampleBank,type ProjectNorDiagnosis,type SampleNorDiagnosis} from './nor-diagnostics.ts';
 import {type Project,type Pad,type Kit,clone,fromBase64,validateProject} from './model.ts';
-export interface Caps{firmware:string;identity:string;wire:number;size:number;capacity:number;userSlots:number}
+export interface Caps{firmware:string;identity:string;wire:number;size:number;capacity:number;userSlots:number;norDiagnostics?:boolean}
 export interface State{revision:number;status:number;error:number;playing:boolean;recording:boolean;armed:boolean;project:number;selected:number;source:number;bpm:number;swing:number;qtz:number;length:number;slots:number}
 export interface Save{state:number;code:number;name:string;raw:number;object:number;copy:number;stage:number;last:number;retry:number;jedec?:number}
 export interface Sample{id:number;flags:number;category:number;name:string;frames:number;rate:number;crc:number;capacity:number;nz:number}
@@ -18,7 +19,7 @@ export class Device{
  private sampleId(id:number){if(!Number.isInteger(id)||id<0||id>=55+(this.caps?.userSlots??16))throw Error('Sample is outside connected device capabilities');}
  private userSlot(slot:number){if(!Number.isInteger(slot)||slot<0||slot>=(this.caps?.userSlots??16))throw Error('User slot is outside connected device capabilities');}
  sampleCapacity(id:number){this.sampleId(id);return this.samples.get(id)?.capacity??this.caps?.capacity??19968;}
- async handshake(){const b=await this.io.request(OP.CAPS);if(b.length!==64||b[0]!==1||b[4]!==8||b[8]!==55||(b[9]!==4&&b[9]!==16)||u16(b,16)!==256||u16(b,18)!==1959||!u32(b,20)||u32(b,20)>81408)throw Error('Incompatible FM1 firmware; device writes disabled');this.caps={firmware:ascii(b.slice(24,56)),identity:ascii(b.slice(56,64)),wire:b[2],size:u16(b,18),capacity:u32(b,20),userSlots:b[9]};return this.caps;}
+ async handshake(){const b=await this.io.request(OP.CAPS);if(b.length!==64||b[0]!==1||b[4]!==8||b[8]!==55||(b[9]!==4&&b[9]!==16)||u16(b,16)!==256||u16(b,18)!==1959||!u32(b,20)||u32(b,20)>81408)throw Error('Incompatible FM1 firmware; device writes disabled');this.caps={firmware:ascii(b.slice(24,56)),identity:ascii(b.slice(56,64)),wire:b[2],size:u16(b,18),capacity:u32(b,20),userSlots:b[9],norDiagnostics:!!(b[14]&1)};return this.caps;}
  async state():Promise<State>{const b=await this.io.request(OP.STATE);if(b.length!==24)throw Error('State reply size');return {revision:u32(b,4),status:b[2],error:b[3],playing:!!b[8],recording:!!b[9],armed:!!b[10],project:b[11],selected:b[12],source:b[13],bpm:u16(b,14),swing:b[16],qtz:b[17],length:b[18],slots:b[23]};}
  async saveStatus():Promise<Save>{const b=await this.io.request(OP.SAVE_ERROR);if(b.length<16)throw Error('Save diagnostic size');return {state:b[0],code:b[1],name:SAVE_ERRORS[b[1]]??'UNKNOWN',object:b[2],copy:b[3],stage:b[4],raw:i32(b,6),last:u32(b,10),retry:u16(b,14),jedec:b.length>=20?u32(b,16):undefined};}
  async pull(base:Project){const p=clone(base),state=await this.state();p.bpm=state.bpm;p.swing=state.swing;p.qtz=state.qtz;p.length=state.length;p.selectedPad=state.selected;p.kitName=state.source===255?'CUSTOM':`FACTORY ${state.source+1}`;for(let l=0;l<8;l++)p.pads[l]=parsePad(await this.io.request(OP.GET_PAD,Uint8Array.of(l)));for(let l=0;l<9;l++){const b=await this.io.request(OP.GET_FX,Uint8Array.of(l));if(b.length!==6)throw Error('FX reply size');p.fx[l]={type:b[1],p:Array.from(b.slice(2)) as [number,number,number,number]};}for(let u=0;u<4;u++)p.users[u]=parseUser(await this.io.request(OP.GET_USER,Uint8Array.of(u)));for(let s=0;s<64;s+=16)parsePattern(await this.io.request(OP.GET_PATTERN,Uint8Array.of(s,16)),p);const set=await this.settings();p.record={metro:set[5],mode:set[6],grid:set[7],count:set[8]};p.midi={channel:set[0],sync:set[1],input:set[2],output:set[3],other:set[4]};return {project:p,state};}
@@ -39,6 +40,21 @@ export class Device{
  async transport(action:number){await this.io.request(OP.TRANSPORT,Uint8Array.of(action),{mutating:true});}
  async settings(fields?:Uint8Array){return this.io.request(OP.SETTINGS,fields?concat(Uint8Array.of(1),fields):Uint8Array.of(0),{mutating:!!fields});}
  async recoveryBackup(object:number,progress=(n:number)=>{}){const b=await this.io.request(OP.RECOVERY_BACKUP,Uint8Array.of(0,object));if(b.length!==50||u16(b,8)!==8192)throw Error('Recovery report');const data=new Uint8Array(8192);try{for(let off=0;off<8192;off+=256){const part=await this.io.request(OP.RECOVERY_BACKUP,concat(Uint8Array.of(1),le16(off),le16(256)));if(part.length!==258||u16(part)!==off)throw Error('Recovery backup chunk');data.set(part.slice(2),off);progress((off+256)/8192);}if(crc32(data)!==u32(b))throw Error('Raw backup CRC mismatch');return {data,crc:u32(b),token:u32(b,4),reports:[b.slice(10,30),b.slice(30,50)]};}catch(e){await this.cancelRecovery().catch(()=>{});throw e;}}
+ private requireNorDiagnostics(){if(!this.caps?.norDiagnostics)throw Error('This firmware lacks read-only NOR diagnostics. Update firmware or use the separately confirmed legacy raw backup action.');}
+ async norProjectReport(object=7):Promise<ProjectNorDiagnosis>{this.requireNorDiagnostics();return parseProjectDiagnosis(await this.io.request(OP.RECOVERY_BACKUP,Uint8Array.of(3,object)),object);}
+ async norSampleReport(slot:number):Promise<SampleNorDiagnosis>{this.requireNorDiagnostics();this.userSlot(slot);return parseSampleDiagnosis(await this.io.request(OP.RECOVERY_BACKUP,Uint8Array.of(5,slot)),slot);}
+ async exportNorProject(object=7,progress=(n:number)=>{}){
+  const before=await this.norProjectReport(object),data=new Uint8Array(8192);
+  for(let off=0;off<8192;off+=256){const b=await this.io.request(OP.RECOVERY_BACKUP,concat(Uint8Array.of(4,object),le16(off),le16(256)));if(b.length!==264||u16(b)!==off||u16(b,2)!==256||u32(b,4)!==8192)throw Error('Read-only raw backup offset/length mismatch');data.set(b.slice(8),off);progress((off+256)/8192);}
+  const after=await this.norProjectReport(object);if(JSON.stringify(before)!==JSON.stringify(after))throw Error('NOR copies changed during read-only backup; retry while stopped');verifyProjectBackup(after,data);return {report:after,data};
+ }
+ async exportNorSampleBanks(progress=(n:number)=>{}){
+  this.requireNorDiagnostics();const reports:SampleNorDiagnosis[]=[],banks:{bank:number;offset:number;crc32:number;data:Uint8Array}[]=[];
+  for(let slot=0;slot<(this.caps?.userSlots??16);slot++)reports.push(await this.norSampleReport(slot));
+  for(let bank=0;bank<4;bank++){const data=await this.backup(2,bank,n=>progress((bank+n)/4));for(const report of reports.filter(r=>r.bank===bank))verifySampleBank(report,data);banks.push({bank,offset:reports[bank].bankOffset,crc32:crc32(data),data});}
+  for(const before of reports){const after=await this.norSampleReport(before.slot);if(JSON.stringify(before)!==JSON.stringify(after))throw Error('Sample bank changed during backup; retry while stopped');}
+  return {reports,banks};
+ }
  async authorizeRecovery(token:number,crc:number){await this.io.request(OP.RECOVERY_AUTHORIZE,concat(le32(token),le32(crc),Uint8Array.of(0x5a)),{mutating:true});}
  async cancelRecovery(){await this.io.request(OP.RECOVERY_BACKUP,Uint8Array.of(2));}
 }

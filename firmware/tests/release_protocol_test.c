@@ -22,8 +22,8 @@ static uint32_t trk_def_engine(uint32_t i){(void)i;return 0;}
 static uint8_t save_io_failure_stage;
 static int32_t save_io_failure_rc;
 static uint32_t erases,programs,wire_sends,rec_calls;
-static int fail_write,persistent_dependency,fail_project_load;
-static int st_read(uint32_t off,void *dst,uint32_t n){assert(off+n<=sizeof nor);memcpy(dst,nor+off,n);return 0;}
+static int fail_write,persistent_dependency,fail_project_load,fail_read;
+static int st_read(uint32_t off,void *dst,uint32_t n){assert(off+n<=sizeof nor);if(fail_read)return -81;memcpy(dst,nor+off,n);return 0;}
 static int st_erase(uint32_t off){assert(!(off&4095u)&&off+4096<=sizeof nor);memset(nor+off,255,4096);erases++;return 0;}
 static int st_prog(uint32_t off,const void *src,uint32_t n){const uint8_t *p=src;uint32_t i;assert(n&&n<=256&&(off&255)+n<=256);if(fail_write)return -83;for(i=0;i<n;i++)nor[off+i]&=p[i];programs++;return 0;}
 #include "../firmware/src/storage.c"

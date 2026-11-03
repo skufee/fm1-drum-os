@@ -7,7 +7,7 @@ root=Path(__file__).resolve().parents[1]
 out=root/'build/host-tests';out.mkdir(parents=True,exist_ok=True)
 gcc=shutil.which('gcc')
 if not gcc:raise SystemExit('gcc is required for host tests; target build uses the separate JieLi toolchain')
-tests=['rc2_start_test','corrective_slots_test','release_user_samples_test','release_persistence_test','drum_sequencer_test','drum_timing_test','drum_qtz_test','rc0_midi_test','rc0_fx_test']
+tests=['physical_nor_test','rc2_start_test','corrective_slots_test','release_user_samples_test','release_persistence_test','drum_sequencer_test','drum_timing_test','drum_qtz_test','rc0_midi_test','rc0_fx_test']
 rows=[]
 for name in tests:
  exe=out/(name+('.exe' if __import__('os').name=='nt' else ''))
