@@ -41,6 +41,8 @@ The optional Python tool requires `mido` and `python-rtmidi`; install those sepa
 
 The tool streams sequential 256-byte pages with CRC/readback; the first page and commit header are programmed last. Each journal step requires a valid other-copy survivor. AUTOSAVE raw rollback holds all automatic saves until a real cold boot or separately confirmed successful retirement; CANCEL/timeout do not lift that hold. The old unknown-format NO SAVE can return after rollback by design. Bank rollback requires no persisted/live references, including rollback copies. Restore banks before reintroducing an unknown AUTOSAVE; perform each target as a separately approved operation. An interrupted bank rollback is not atomic; complete originals remain external.
 
+If a hardware test assigned a new USER sample, first obtain separate approval to remove its references from live pads and USER kits and persist that reference-free state. Both AUTOSAVE rollback copies must become reference-free: after the first verified save, make one explicit harmless persisted change (for example selected pad) and wait for a second verified save, respecting the unchanged20-second interval. Identical snapshots do not force an extra NOR write. Download/decode both copies and verify references before any bank restore. Restore the desired reference-free seed afterward if needed. This is never automated by the rollback tool and also requires approval for those AUTOSAVE writes.
+
 Example syntax (owner only; do not run --execute without explicit approval):
 
 ```powershell

@@ -22,7 +22,7 @@ test('journal retirement downloads complete raw/seed archive, shows one exact ra
 });
 
 test('cancel after backup consumes RAM plan without any write, and old firmware cannot prepare retirement',async({page})=>{
- await page.addInitScript(installMockMIDI,base);await connect(page);await Promise.all([page.waitForEvent('download'),page.locator('[data-action="retire-prepare-journal"]').click()]);await page.locator('[data-action="retire-cancel"]').click();await expect(page.getByText('RAM retirement preparation cancelled. No retirement write requested.')).toBeVisible();expect(await page.evaluate(commits)).toHaveLength(0);await expect(page.locator('[data-action="retire-commit"]')).toHaveCount(0);
+ await page.addInitScript(installMockMIDI,base);await connect(page);await Promise.all([page.waitForEvent('download'),page.locator('[data-action="retire-prepare-journal"]').click()]);await page.locator('[data-action="retire-cancel"]').click();await expect(page.getByText('RAM proof cancelled. Previous NOR writes are not undone; read status and backups.')).toBeVisible();expect(await page.evaluate(commits)).toHaveLength(0);await expect(page.locator('[data-action="retire-commit"]')).toHaveCount(0);
  await page.close();
 });
 
@@ -41,3 +41,15 @@ test('bank retirement is a separately confirmed80KiB target and refreshes freed 
 });
 
 test('already erased bank is not mislabeled as requiring retirement and sends no prepare/erase',async({page})=>{await page.addInitScript(installMockMIDI,base);await connect(page);await page.locator('[data-ui="retirementBank"]').selectOption('1');await page.locator('[data-action="retire-prepare-bank"]').click();await expect(page.getByRole('alert')).toContainText('already erased');await expect(page.getByRole('alert')).toContainText('persisted references');expect(await page.evaluate(()=>(window as any).__fm1Mock.calls.some((c:any)=>c.op===30&&[3,4].includes(c.payload[0])))).toBe(false);});
+
+
+test('failed commit leaves an explicit RAM-cancel path after local proof is consumed, with no write retry',async({page})=>{
+ await page.addInitScript(installMockMIDI,{...base,retirementCommitBusy:true});await connect(page);
+ await Promise.all([page.waitForEvent('download'),page.locator('[data-action="retire-prepare-journal"]').click()]);
+ await page.locator('[data-ui="retirementAcknowledged"]').check();await page.getByLabel('Exact retirement confirmation').fill('RETIRE AUTOSAVE A');await page.locator('[data-action="retire-commit"]').click();
+ await expect(page.getByRole('alert')).toBeVisible();await expect(page.locator('[data-action="retire-commit"]')).toHaveCount(0);expect(await page.evaluate(commits)).toHaveLength(1);
+ await expect(page.locator('[data-action="retire-cancel"]')).toBeEnabled();await page.locator('[data-action="retire-cancel"]').click();
+ await expect(page.getByText('RAM proof cancelled. Previous NOR writes are not undone; read status and backups.')).toBeVisible();
+ expect(await page.evaluate(()=>(window as any).__fm1Mock.calls.filter((c:any)=>c.op===30&&c.payload[0]===6).length)).toBe(1);expect(await page.evaluate(commits)).toHaveLength(1);
+ await Promise.all([page.waitForEvent('download'),page.locator('[data-action="retire-prepare-journal"]').click()]);await expect(page.getByLabel('Exact retirement confirmation')).toBeVisible();expect(await page.evaluate(commits)).toHaveLength(1);
+});
