@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import {MidiTransport,OP,concat,le16,le32,u16,u32,i32,ascii,verifyProjectWire,crc32,SAVE_ERRORS} from './protocol.ts';
 import {parseProjectDiagnosis,parseSampleDiagnosis,verifyProjectBackup,verifySampleBank,type ProjectNorDiagnosis,type SampleNorDiagnosis} from './nor-diagnostics.ts';
+import {parseRetirementPlan,parseRetirementStatus,parseRetirementResult,retirementPhrase,type PreparedRetirement,type RetirementStatus,type RetirementResult} from './retirement.ts';
 import {type Project,type Pad,type Kit,clone,fromBase64,validateProject} from './model.ts';
-export interface Caps{firmware:string;identity:string;wire:number;size:number;capacity:number;userSlots:number;norDiagnostics?:boolean}
+export interface Caps{firmware:string;identity:string;wire:number;size:number;capacity:number;userSlots:number;norDiagnostics?:boolean;retirement?:boolean}
 export interface State{revision:number;status:number;error:number;playing:boolean;recording:boolean;armed:boolean;project:number;selected:number;source:number;bpm:number;swing:number;qtz:number;length:number;slots:number}
 export interface Save{state:number;code:number;name:string;raw:number;object:number;copy:number;stage:number;last:number;retry:number;jedec?:number}
 export interface Sample{id:number;flags:number;category:number;name:string;frames:number;rate:number;crc:number;capacity:number;nz:number}
-export interface DeviceIO{request(op:number,payload?:Uint8Array,opts?:{mutating?:boolean;retries?:number}):Promise<Uint8Array>;close():void}
+export interface DeviceIO{request(op:number,payload?:Uint8Array,opts?:{mutating?:boolean;retries?:number;timeoutMs?:number}):Promise<Uint8Array>;close():void}
 export function padBytes(lane:number,p:Pad){return concat(Uint8Array.of(lane,p.sampleId,p.level,p.pan+64,+p.mute,p.tune+24,p.start,p.end,p.decay),le32(p.ref));}
 export function parsePad(b:Uint8Array):Pad{if(b.length!==13)throw Error('PAD reply size');return {sampleId:b[1],level:b[2],pan:b[3]-64,mute:!!b[4],tune:b[5]-24,start:b[6],end:b[7],decay:b[8],ref:u32(b,9)};}
 const signed=(n:number)=>n>127?n-256:n;
@@ -15,11 +16,11 @@ export function parseUser(b:Uint8Array):Kit|null{if(b.length!==143)throw Error('
 export function patternBytes(p:Project,start:number,count:number){const b=new Uint8Array(7+18*count);b.set([start,count,p.length,p.swing,p.qtz]);b.set(le16(p.bpm),5);for(let i=0;i<count;i++){let on=0,lv=0,rat=0;for(let l=0;l<8;l++){const e=p.pattern[start+i][l];if(e.on)on|=1<<l;lv|=e.level<<(2*l);rat|=e.ratchet<<(2*l);b[7+18*i+10+l]=e.raw&255;}b.set(le16(on),7+18*i);b.set(le32(lv),9+18*i);b.set(le32(rat),13+18*i);}return b;}
 export function parsePattern(b:Uint8Array,p:Project){if(b.length!==7+18*b[1])throw Error('Pattern reply size');p.length=b[2];p.swing=b[3];p.qtz=b[4];p.bpm=u16(b,5);for(let i=0;i<b[1];i++){const o=7+18*i,on=u16(b,o),lv=u32(b,o+2),rat=u32(b,o+6);p.pattern[b[0]+i]=Array.from({length:8},(_,l)=>({on:!!(on&(1<<l)),level:(lv>>>(2*l))&3,ratchet:(rat>>>(2*l))&3,raw:signed(b[o+10+l])}));}}
 export class Device{
- caps:Caps|null=null;readOnly=false;private samples=new Map<number,Sample>();constructor(public io:DeviceIO){}
+ caps:Caps|null=null;readOnly=false;private samples=new Map<number,Sample>();private preparedRetirement:PreparedRetirement|null=null;constructor(public io:DeviceIO){}
  private sampleId(id:number){if(!Number.isInteger(id)||id<0||id>=55+(this.caps?.userSlots??16))throw Error('Sample is outside connected device capabilities');}
  private userSlot(slot:number){if(!Number.isInteger(slot)||slot<0||slot>=(this.caps?.userSlots??16))throw Error('User slot is outside connected device capabilities');}
  sampleCapacity(id:number){this.sampleId(id);return this.samples.get(id)?.capacity??this.caps?.capacity??19968;}
- async handshake(){const b=await this.io.request(OP.CAPS);if(b.length!==64||b[0]!==1||b[4]!==8||b[8]!==55||(b[9]!==4&&b[9]!==16)||u16(b,16)!==256||u16(b,18)!==1959||!u32(b,20)||u32(b,20)>81408)throw Error('Incompatible FM1 firmware; device writes disabled');this.caps={firmware:ascii(b.slice(24,56)),identity:ascii(b.slice(56,64)),wire:b[2],size:u16(b,18),capacity:u32(b,20),userSlots:b[9],norDiagnostics:!!(b[14]&1)};return this.caps;}
+ async handshake(){const b=await this.io.request(OP.CAPS);if(b.length!==64||b[0]!==1||b[4]!==8||b[8]!==55||(b[9]!==4&&b[9]!==16)||u16(b,16)!==256||u16(b,18)!==1959||!u32(b,20)||u32(b,20)>81408)throw Error('Incompatible FM1 firmware; device writes disabled');this.caps={firmware:ascii(b.slice(24,56)),identity:ascii(b.slice(56,64)),wire:b[2],size:u16(b,18),capacity:u32(b,20),userSlots:b[9],norDiagnostics:!!(b[14]&1),retirement:!!(b[14]&2)};return this.caps;}
  async state():Promise<State>{const b=await this.io.request(OP.STATE);if(b.length!==24)throw Error('State reply size');return {revision:u32(b,4),status:b[2],error:b[3],playing:!!b[8],recording:!!b[9],armed:!!b[10],project:b[11],selected:b[12],source:b[13],bpm:u16(b,14),swing:b[16],qtz:b[17],length:b[18],slots:b[23]};}
  async saveStatus():Promise<Save>{const b=await this.io.request(OP.SAVE_ERROR);if(b.length<16)throw Error('Save diagnostic size');return {state:b[0],code:b[1],name:SAVE_ERRORS[b[1]]??'UNKNOWN',object:b[2],copy:b[3],stage:b[4],raw:i32(b,6),last:u32(b,10),retry:u16(b,14),jedec:b.length>=20?u32(b,16):undefined};}
  async pull(base:Project){const p=clone(base),state=await this.state();p.bpm=state.bpm;p.swing=state.swing;p.qtz=state.qtz;p.length=state.length;p.selectedPad=state.selected;p.kitName=state.source===255?'CUSTOM':`FACTORY ${state.source+1}`;for(let l=0;l<8;l++)p.pads[l]=parsePad(await this.io.request(OP.GET_PAD,Uint8Array.of(l)));for(let l=0;l<9;l++){const b=await this.io.request(OP.GET_FX,Uint8Array.of(l));if(b.length!==6)throw Error('FX reply size');p.fx[l]={type:b[1],p:Array.from(b.slice(2)) as [number,number,number,number]};}for(let u=0;u<4;u++)p.users[u]=parseUser(await this.io.request(OP.GET_USER,Uint8Array.of(u)));for(let s=0;s<64;s+=16)parsePattern(await this.io.request(OP.GET_PATTERN,Uint8Array.of(s,16)),p);const set=await this.settings();p.record={metro:set[5],mode:set[6],grid:set[7],count:set[8]};p.midi={channel:set[0],sync:set[1],input:set[2],output:set[3],other:set[4]};return {project:p,state};}
@@ -54,6 +55,31 @@ export class Device{
   for(let bank=0;bank<4;bank++){const data=await this.backup(2,bank,n=>progress((bank+n)/4));for(const report of reports.filter(r=>r.bank===bank))verifySampleBank(report,data);banks.push({bank,offset:reports[bank].bankOffset,crc32:crc32(data),data});}
   for(const before of reports){const after=await this.norSampleReport(before.slot);if(JSON.stringify(before)!==JSON.stringify(after))throw Error('Sample bank changed during backup; retry while stopped');}
   return {reports,banks};
+ }
+ private requireRetirement(){if(!this.caps?.retirement)throw Error('This firmware does not support explicit retirement; no recovery write was requested');}
+ private async retirementIdle(){const state=await this.state();if(state.playing||state.recording||state.armed)throw Error('STOP and disarm before preparing retirement');}
+ async prepareJournalRetirement(object=7,progress=(n:number)=>{}):Promise<PreparedRetirement>{
+  this.requireRetirement();if(!Number.isInteger(object)||!(object===7||object>=1&&object<=4))throw Error('Journal object is outside permitted recovery ranges');await this.retirementIdle();this.preparedRetirement=null;
+  try{const backup=await this.recoveryBackup(object,n=>progress(n*.7));const plan=parseRetirementPlan(await this.io.request(OP.RETIREMENT,Uint8Array.of(0,object)),0,object);if(plan.snapshotCRC!==backup.crc||crc32(backup.data.slice(plan.survivorCopy*4096,(plan.survivorCopy+1)*4096))!==plan.survivorCRC||crc32(backup.data.slice(plan.copy*4096,(plan.copy+1)*4096))!==plan.targetCRC)throw Error('Plan does not match the complete downloaded A/B backup');
+   const seed=new Uint8Array(plan.seedLength);for(let off=0;off<seed.length;off+=256){const n=Math.min(256,seed.length-off),b=await this.io.request(OP.RETIREMENT,concat(Uint8Array.of(1),le16(off),le16(n)));if(b.length!==8+n||u16(b)!==off||u16(b,2)!==seed.length||u32(b,4)!==plan.seedCRC)throw Error('Recovery seed download offset/size/CRC mismatch');seed.set(b.slice(8),off);progress(.7+.3*(off+n)/seed.length);}
+   if(crc32(seed)!==plan.seedCRC||verifyProjectWire(seed)!==6)throw Error('Recovery seed CRC/DRM6 mismatch; no retirement authorized');
+   return this.preparedRetirement={plan,raw:backup.data,seed};
+  }catch(e){await this.cancelRetirement().catch(()=>{});throw e;}
+ }
+ async prepareBankRetirement(bank:number,progress=(n:number)=>{}):Promise<PreparedRetirement>{
+  this.requireRetirement();if(!Number.isInteger(bank)||bank<0||bank>3)throw Error('Physical bank is outside existing NOR layout');await this.retirementIdle();this.preparedRetirement=null;
+  try{const raw=await this.backup(2,bank,progress);if(raw.every(v=>v===255))throw Error('This physical bank is already erased; no bank retirement is needed. Uploads may still require resolving persisted references.');const plan=parseRetirementPlan(await this.io.request(OP.RETIREMENT,Uint8Array.of(3,bank)),1,bank);if(crc32(raw)!==plan.snapshotCRC)throw Error('Plan does not match the complete downloaded sample bank');return this.preparedRetirement={plan,raw,seed:new Uint8Array()};}
+  catch(e){await this.cancelRetirement().catch(()=>{});throw e;}
+ }
+ async retirementStatus():Promise<RetirementStatus>{this.requireRetirement();return parseRetirementStatus(await this.io.request(OP.RETIREMENT,Uint8Array.of(5)));}
+ async cancelRetirement(){this.preparedRetirement=null;if(this.caps?.retirement)await this.io.request(OP.RETIREMENT,Uint8Array.of(6),{retries:0});}
+ async commitRetirement(prepared:PreparedRetirement,confirmation:string):Promise<RetirementResult>{
+  this.requireRetirement();if(this.preparedRetirement!==prepared)throw Error('Prepare and download a fresh backup before every retirement step');const p=prepared.plan;
+  if(confirmation!==retirementPhrase(p))throw Error('Exact retirement confirmation phrase is required; no write was requested');
+  if(crc32(prepared.raw)!==p.snapshotCRC||p.kind===0&&(crc32(prepared.seed)!==p.seedCRC||verifyProjectWire(prepared.seed)!==6))throw Error('Prepared backup/seed changed; no retirement authorized');
+  this.preparedRetirement=null;
+  const payload=p.kind===0?concat(Uint8Array.of(2),le32(p.token),le32(p.snapshotCRC),le32(p.seedCRC),Uint8Array.of(p.copy,0x5a)):concat(Uint8Array.of(4),le32(p.token),le32(p.snapshotCRC),Uint8Array.of(p.target,0x5a));
+  const reply=await this.io.request(OP.RETIREMENT,payload,{mutating:true,retries:0,timeoutMs:30000});return parseRetirementResult(reply,p);
  }
  async authorizeRecovery(token:number,crc:number){await this.io.request(OP.RECOVERY_AUTHORIZE,concat(le32(token),le32(crc),Uint8Array.of(0x5a)),{mutating:true});}
  async cancelRecovery(){await this.io.request(OP.RECOVERY_BACKUP,Uint8Array.of(2));}

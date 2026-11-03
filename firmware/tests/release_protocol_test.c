@@ -22,10 +22,13 @@ static uint32_t trk_def_engine(uint32_t i){(void)i;return 0;}
 static uint8_t save_io_failure_stage;
 static int32_t save_io_failure_rc;
 static uint32_t erases,programs,wire_sends,rec_calls;
-static int fail_write,persistent_dependency,fail_project_load,fail_read;
-static int st_read(uint32_t off,void *dst,uint32_t n){assert(off+n<=sizeof nor);if(fail_read)return -81;memcpy(dst,nor+off,n);return 0;}
-static int st_erase(uint32_t off){assert(!(off&4095u)&&off+4096<=sizeof nor);memset(nor+off,255,4096);erases++;return 0;}
-static int st_prog(uint32_t off,const void *src,uint32_t n){const uint8_t *p=src;uint32_t i;assert(n&&n<=256&&(off&255)+n<=256);if(fail_write)return -83;for(i=0;i<n;i++)nor[off+i]&=p[i];programs++;return 0;}
+static int fail_write,persistent_dependency,fail_project_load,fail_read,fail_erase;
+static int fail_prog_after=-1,fail_erase_after=-1,partial_commit,silent_bad_program;
+static uint32_t test_reads,test_read_fail_nth;
+static int save_write_allowed(uint32_t off,uint32_t n);
+static int st_read(uint32_t off,void *dst,uint32_t n){assert(off+n<=sizeof nor);test_reads++;if(fail_read||(test_read_fail_nth&&test_reads==test_read_fail_nth)){save_io_failure_stage=1;save_io_failure_rc=-81;return -81;}memcpy(dst,nor+off,n);return 0;}
+static int st_erase(uint32_t off){assert(!(off&4095u)&&off+4096<=sizeof nor);if(!save_write_allowed(off,4096)){save_io_failure_stage=5;save_io_failure_rc=-104;return -104;}if(fail_erase||fail_erase_after==0){save_io_failure_stage=2;save_io_failure_rc=-82;return -82;}if(fail_erase_after>0)fail_erase_after--;memset(nor+off,255,4096);erases++;return 0;}
+static int st_prog(uint32_t off,const void *src,uint32_t n){const uint8_t *p=src;uint32_t i;assert(n&&n<=256&&(off&255)+n<=256);if(!save_write_allowed(off,n)){save_io_failure_stage=5;save_io_failure_rc=-104;return -104;}if(fail_write||fail_prog_after==0){save_io_failure_stage=3;save_io_failure_rc=-83;return -83;}if(fail_prog_after>0)fail_prog_after--;if(partial_commit&&!(off&4095u)){for(i=0;i<n/2;i++)nor[off+i]&=p[i];save_io_failure_stage=3;save_io_failure_rc=-84;return -84;}for(i=0;i<n;i++)nor[off+i]&=p[i];programs++;if(silent_bad_program&&(off&4095u)==256u){nor[off+100]^=1;silent_bad_program=0;}return 0;}
 #include "../firmware/src/storage.c"
 static drumrec3_t drumrec3_buf;
 #include "../firmware/src/persistence_diag.h"
@@ -41,11 +44,14 @@ static union{project_t v6;uint8_t raw[ST_PAYLOAD_MAX];}proj_tmp;
 static project_t autosave_buf;
 static struct{uint8_t force;char msg[64];}ui;
 static uint8_t flash_ok=1,autosave_written_session,autosave_state;
+static uint8_t autosave_recovery_hold;
 static uint32_t autosave_ms,ui_input_ms,save_flash_jedec=0x856014;
 static uint8_t lights_sync,lights_min,lights_mout,settings_later;
 static int audio_quiet(void){uint32_t i;for(i=0;i<NDRUM;i++)if(drums.v[i].active)return 0;return 1;}
 static uint32_t autosave_status(void){return autosave_state;}
 static void autosave_write(int force){(void)force; /* explicit service double: ACK is not durable */ autosave_state=0;}
+static void project_recovery_committed(uint32_t obj,const void *wire,uint32_t n){(void)wire;if(obj==7u&&n==DRUMREC6_SIZE){autosave_state=1;autosave_recovery_hold=0;}}
+static void project_recovery_invalidated(uint32_t obj){if(obj==7u){autosave_state=0;autosave_recovery_hold=1;}}
 static int project_sample_slot_referenced(uint32_t slot){(void)slot;return persistent_dependency;}
 static int project_used(uint32_t slot){return st_load(OBJ_PROJECT0+slot,&proj_tmp,sizeof proj_tmp)>0;}
 static int project_save(uint32_t slot){uint8_t b[DRUMREC6_SIZE];drumrec3_capture_live(&drumrec3_buf);if(!drumrec6_encode(b,sizeof b,&drumrec3_buf))return 0;return save_commit(OBJ_PROJECT0+slot,b,sizeof b)==0;}

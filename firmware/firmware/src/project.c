@@ -1025,6 +1025,7 @@ static void project_load(uint32_t slot)
 static project_t autosave_buf __attribute__((section(".pool")));
 static uint8_t autosave_wire[PROJECT_RECORD_SIZE] __attribute__((section(".pool")));
 static uint8_t autosave_valid, autosave_written_session, autosave_state;
+static uint8_t autosave_recovery_hold; /* raw rollback: resume only after boot or explicit verified retirement */
 static uint32_t autosave_ms, autosave_checked, autosave_input_seen;
 
 static int audio_quiet(void)
@@ -1040,6 +1041,7 @@ static int audio_quiet(void)
 static uint32_t autosave_status(void)
 {
     if (!flash_ok) return 2u;
+    if (autosave_recovery_hold) return 0u;
     if (song.playing || song.rec || rec_wait || ft_on || transport_req ||
         ui_input_ms != autosave_input_seen || !audio_quiet()) return 0u;
     if(save_backup.active&&save_backup.object==OBJ_AUTOSAVE&&!save_backup.authorized)return 0u;
@@ -1059,10 +1061,24 @@ static void autosave_remember(const drumrec3_t *persisted)
            !memcmp(project_wire,autosave_wire,PROJECT_RECORD_SIZE))autosave_state=1;
     }
 }
+/* Explicit retirement already verified the exact committed wire and cold
+ * selection. Only then may its current-runtime seed become the durable cache. */
+static void project_recovery_invalidated(uint32_t obj)
+{
+    if(obj==OBJ_AUTOSAVE){autosave_valid=0;autosave_state=0;autosave_recovery_hold=1;}
+    else if(obj>=OBJ_PROJECT0&&obj<OBJ_PROJECT0+4u){proj_kind[obj-OBJ_PROJECT0]=3;proj_slot[obj-OBJ_PROJECT0].magic=0;}
+}
+static void project_recovery_committed(uint32_t obj,const void *wire,uint32_t n)
+{
+    if(obj==OBJ_AUTOSAVE&&n==DRUMREC6_SIZE&&drumrec6_decode(&drumrec3_buf,wire,n)) {
+        autosave_recovery_hold=0;autosave_remember(&drumrec3_buf);autosave_ms=fm1_ms;autosave_written_session=1;
+    }
+}
 static void autosave_write(int force_idle)
 {
 #if FELUCCA_FLASH
     if (!flash_ok) { autosave_state = 2;save_error(SAVE_ERR_FLASH_NOT_READY,-1,OBJ_AUTOSAVE,255,SAVE_STAGE_CLASSIFY); return; }
+    if(autosave_recovery_hold){autosave_state=0;return;}
     if (song.playing || song.rec || rec_wait || ft_on || transport_req || !audio_quiet() ||
         (!force_idle && fm1_ms - ui_input_ms < AUTOSAVE_IDLE)) { autosave_state = 0; return; }
     if(save_backup.active&&save_backup.object==OBJ_AUTOSAVE&&!save_backup.authorized){autosave_state=0;return;}

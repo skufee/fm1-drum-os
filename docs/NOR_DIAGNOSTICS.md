@@ -1,3 +1,5 @@
+> For 1.0.0-rc.2 explicit, separately approved retirement and raw rollback, see [storage recovery](STORAGE_RECOVERY.md). The diagnostic-only limitations below describe rc.1. No operation is automatic.
+
 # Safe NOR diagnostics and update
 
 1.0.0-rc.1 is a diagnostic compatibility candidate. It does not silently clear protected data or claim hardware release acceptance. Auto-fit and16 USER slots remain available.

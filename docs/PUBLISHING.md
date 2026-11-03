@@ -5,7 +5,7 @@ No repository or site is created by the build. Replace `OWNER` and `REPO` below 
 ```powershell
 git init -b main
 git add .
-git commit -m "FM1 DRUM OS 1.0.0-rc"
+git commit -m "FM1 DRUM OS 1.0.0-rc.2"
 gh repo create OWNER/REPO --public --source . --remote origin --push
 ```
 

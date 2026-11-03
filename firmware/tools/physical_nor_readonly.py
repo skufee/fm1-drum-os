@@ -26,12 +26,12 @@ def unpack7(raw):
 
 def allowed(op,p):
     return (op in (1,2,18) and not p or
-            op==19 and len(p)==8 and p[0]==2 and p[1]<4 or
-            op==27 and (p==b'\x00\x07' or p==b'\x02' or len(p)==5 and p[0]==1))
+            op==19 and len(p)==8 and (p[0]==2 and p[1]<4 or p[0]==0 and p[1]==0) or
+            op==27 and (len(p)==2 and p[0]==0 and p[1] in (1,2,3,4,7) or p==b'\x02' or len(p)==5 and p[0]==1))
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('--deps',type=Path);ap.add_argument('--out',type=Path,required=True)
-    ap.add_argument('--journal-only',action='store_true');ap.add_argument('--owner-authorized-read-only',action='store_true',required=True);a=ap.parse_args()
+    ap.add_argument('--projects',action='store_true');ap.add_argument('--working-snapshot',action='store_true');ap.add_argument('--journal-only',action='store_true');ap.add_argument('--owner-authorized-read-only',action='store_true',required=True);a=ap.parse_args()
     if a.deps:sys.path.insert(0,str(a.deps.resolve()))
     import mido
     out=a.out.resolve();out.mkdir(parents=True,exist_ok=True);ops=[];request_id=0;lock=False
@@ -88,6 +88,28 @@ def main():
                 (out/f'sample-bank-{bank}.bin').write_bytes(data)
                 banks.append({'bank':bank,'bytes':len(data),'crc32':hex(zlib.crc32(data)),'sha256':hashlib.sha256(data).hexdigest()});summary['sample_banks']=banks
                 print('PHYSICAL BANK',bank,'read81920',flush=True);save()
+            if a.projects:
+                projects=[]
+                for obj in range(1,5):
+                    meta=request(27,bytes([0,obj]));lock=True;assert len(meta)==50
+                    data=bytearray()
+                    for off in range(0,8192,256):
+                        part=request(27,b'\1'+struct.pack('<HH',off,256));assert len(part)==258 and struct.unpack_from('<H',part)[0]==off;data+=part[2:]
+                    assert zlib.crc32(data)==struct.unpack_from('<I',meta)[0]
+                    (out/f'project-{obj}-AB.bin').write_bytes(data)
+                    projects.append({'object':obj,'bytes':8192,'crc32':hex(zlib.crc32(data)),'sha256':hashlib.sha256(data).hexdigest(),'report_hex':meta.hex()})
+                    request(27,b'\2');lock=False;print('PHYSICAL PROJECT',obj,'full8192 CRC PASS',flush=True)
+                summary['projects']=projects;save()
+            if a.working_snapshot:
+                data=bytearray()
+                for off in range(0,1959,256):
+                    n=min(256,1959-off);part=request(19,bytes([0,0])+struct.pack('<IH',off,n))
+                    assert len(part)==12+n and part[:2]==bytes([0,0]) and struct.unpack_from('<I',part,2)[0]==1959 and struct.unpack_from('<I',part,6)[0]==off and struct.unpack_from('<H',part,10)[0]==n
+                    data+=part[12:]
+                assert data[:4]==b'DRM6' and struct.unpack_from('<I',data,12)[0]==zlib.crc32(data[16:])
+                (out/'current-runtime.drm').write_bytes(data)
+                summary['runtime_snapshot']={'bytes':len(data),'crc32':hex(zlib.crc32(data)),'sha256':hashlib.sha256(data).hexdigest()}
+                print('PHYSICAL current runtime DRM6 captured without applying/writing',flush=True);save()
             # Read-only repeat of complete banks is optional to avoid overstating
             # filesystem hashes as a firmware CRC. Each chunk has firmware CRC;
             # compare all bytes with owner supplied CRC-checked archive afterwards.

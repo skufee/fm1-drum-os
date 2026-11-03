@@ -1,6 +1,6 @@
 # Firmware update and acceptance
 
-This candidate is `1.0.0-rc`, package identity `FM-1_900`. Use only the update method and recovery procedure already verified for your exact FM1 hardware revision. No universal boot-button sequence or recovery method is asserted here; obtain the matching manufacturer's/upstream updater separately. This repository does not automatically flash a device.
+This candidate is `1.0.0-rc.2`, package identity `FM-1_900`. Use only the update method and recovery procedure already verified for your exact FM1 hardware revision. No universal boot-button sequence or recovery method is asserted here; obtain the matching manufacturer's/upstream updater separately. This repository does not automatically flash a device.
 
 Before an update, save projects, export the complete user-sample library and retain available raw A/B backups, the previously working firmware, the new FWSC SHA-256 and a matching-revision rollback/recovery path. The source repository intentionally excludes release binaries; use the separately supplied matching release bundle. Do not repartition NOR or erase unknown data to make an update/save appear successful.
 

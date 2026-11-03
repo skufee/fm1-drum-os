@@ -68,13 +68,19 @@ static int dw_sample_erase(uint32_t slot,uint32_t n)
 static void dw_sample_rescan_bank(uint32_t slot)
 {uint32_t i;for(i=slot%4u;i<DRUM_USER_SAMPLE_COUNT;i+=4u)drum_user_sample_scan(i);}
 #include "nor_diagnostics.h"
+#include "storage_retirement.h"
 static uint32_t dw_dispatch(uint32_t op,const uint8_t *p,uint32_t n,uint32_t *out){
  uint32_t i,j,slot,off,count,total,kind;int rc;*out=0;
  if(op!=1u&&op!=2u&&op!=3u&&op!=5u&&op!=7u&&op!=9u&&op!=11u&&op!=17u&&op!=18u&&op!=19u&&!dw_ready)return 2;
+ /* Staged current-runtime seed/proofs cannot be overwritten by another edit,
+  * upload, restore or backup. Physical panel edits are caught by seed equality. */
+ if(sr.active&&op!=30u&&(op==4u||op==6u||op==8u||op==10u||(op>=12u&&op<=16u)||
+    op==19u||(op>=20u&&op<=25u)||(op==26u&&n&&p[0])||op==28u||op==29u||
+    (op==27u&&n&&p[0]<3u)))return 3;
  switch(op){
- case 1: if(n)return 1;memset(dw_reply,0,64);dw_reply[0]=1;dw_reply[2]=6;dw_reply[3]=1;dw_reply[4]=8;dw_reply[5]=6;dw_reply[6]=6;dw_reply[7]=4;dw_reply[8]=55;dw_reply[9]=DRUM_USER_SAMPLE_COUNT;dw_reply[10]=64;dw_reply[11]=8;dw_reply[12]=6;dw_reply[13]=63;dw_reply[14]=1;dw_w16(dw_reply+16,256);dw_w16(dw_reply+18,DRUMREC6_SIZE);dw_w32(dw_reply+20,DRUM_USER_CAPACITY);memcpy(dw_reply+24,FM1_DRUM_FIRMWARE,sizeof(FM1_DRUM_FIRMWARE)-1u);memcpy(dw_reply+56,"FM-1_900",8);dw_ready=1;*out=64;return 0;
- case 2: if(n)return 1;fm1_irq_off();drumrec3_capture_live(&drumrec3_buf);fm1_irq_on();if(!drumrec6_encode(dw_transfer,sizeof dw_transfer,&drumrec3_buf))return 8;
- memset(dw_reply,0,24);dw_w16(dw_reply,DRUMREC6_SIZE);dw_reply[2]=(uint8_t)autosave_status();dw_reply[3]=save_diag.code;dw_w32(dw_reply+4,st_crc32(dw_transfer,sizeof dw_transfer)^(uint32_t)drum_qtz_strength_get());dw_reply[8]=song.playing;dw_reply[9]=song.rec;dw_reply[10]=rec_wait;dw_reply[11]=(uint8_t)clamp(song.g[G_SLOT]-1,0,3);dw_reply[12]=drum_pad_sel;dw_reply[13]=(uint8_t)drum_kit_source_get();dw_w16(dw_reply+14,song.g[G_BPM]);dw_reply[16]=(uint8_t)song.g[G_SWING];dw_reply[17]=drum_qtz_strength_get();dw_reply[18]=(uint8_t)trk_len(TDRUM);dw_reply[19]=rec_mode_get();dw_reply[20]=rec_grid_get();dw_reply[21]=rec_count_get();dw_reply[22]=(uint8_t)song.g[G_CLOCK];for(i=0;i<4;i++)if(project_used(i))dw_reply[23]|=(uint8_t)(1u<<i);*out=24;return 0;
+ case 1: if(n)return 1;memset(dw_reply,0,64);dw_reply[0]=1;dw_reply[2]=6;dw_reply[3]=1;dw_reply[4]=8;dw_reply[5]=6;dw_reply[6]=6;dw_reply[7]=4;dw_reply[8]=55;dw_reply[9]=DRUM_USER_SAMPLE_COUNT;dw_reply[10]=64;dw_reply[11]=8;dw_reply[12]=6;dw_reply[13]=63;dw_reply[14]=7;dw_w16(dw_reply+16,256);dw_w16(dw_reply+18,DRUMREC6_SIZE);dw_w32(dw_reply+20,DRUM_USER_CAPACITY);memcpy(dw_reply+24,FM1_DRUM_FIRMWARE,sizeof(FM1_DRUM_FIRMWARE)-1u);memcpy(dw_reply+56,"FM-1_900",8);dw_ready=1;*out=64;return 0;
+ case 2: if(n)return 1;fm1_irq_off();drumrec3_capture_live(&drumrec3_buf);fm1_irq_on();if(!drumrec6_encode(st_buf,sizeof st_buf,&drumrec3_buf))return 8;
+ memset(dw_reply,0,24);dw_w16(dw_reply,DRUMREC6_SIZE);dw_reply[2]=(uint8_t)autosave_status();dw_reply[3]=save_diag.code;dw_w32(dw_reply+4,st_crc32(st_buf,DRUMREC6_SIZE)^(uint32_t)drum_qtz_strength_get());dw_reply[8]=song.playing;dw_reply[9]=song.rec;dw_reply[10]=rec_wait;dw_reply[11]=(uint8_t)clamp(song.g[G_SLOT]-1,0,3);dw_reply[12]=drum_pad_sel;dw_reply[13]=(uint8_t)drum_kit_source_get();dw_w16(dw_reply+14,song.g[G_BPM]);dw_reply[16]=(uint8_t)song.g[G_SWING];dw_reply[17]=drum_qtz_strength_get();dw_reply[18]=(uint8_t)trk_len(TDRUM);dw_reply[19]=rec_mode_get();dw_reply[20]=rec_grid_get();dw_reply[21]=rec_count_get();dw_reply[22]=(uint8_t)song.g[G_CLOCK];for(i=0;i<4;i++)if(project_used(i))dw_reply[23]|=(uint8_t)(1u<<i);*out=24;return 0;
  case 3: if(n!=1||p[0]>=8)return 1;dw_pad_out(p[0]);*out=13;return 0;
  case 4: if(n!=13||p[0]>=8||p[1]>=DRUM_SAMPLE_COUNT||p[2]>127||p[3]>127||p[4]>1||p[5]>48||p[6]>=p[7]||p[7]>100||p[8]>127)return 1;
  if(song.rec||rec_wait||ft_on)return 3;if(!drum_sample_available(p[1],dw_u32(p+9)))return 7;
@@ -129,17 +135,18 @@ static uint32_t dw_dispatch(uint32_t op,const uint8_t *p,uint32_t n,uint32_t *ou
  if(p[0]==2){if(n!=1)return 1;save_backup_cancel();return 0;}if(n!=5||!dw_u16(p+3)||dw_u16(p+3)>256)return 1;off=dw_u16(p+1);count=dw_u16(p+3);if(!save_backup_read(off,count,dw_reply+2))return 4;dw_w16(dw_reply,off);*out=count+2;return 0;
  case 28: if(n!=9||p[8]!=DW_CONFIRM)return 1;if(dw_write_busy())return 3;if(!save_recovery_authorize(dw_u32(p),dw_u32(p+4)))return 4;return 0;
  case 29: if(n!=1||p[0]>=4)return 1;if(dw_write_busy())return 3;if(!project_used(p[0]))return 7;{int length=st_load(OBJ_PROJECT0+p[0],&proj_tmp,sizeof proj_tmp);if(length<0||(!save_wire_format(&proj_tmp,(uint32_t)length)&&!proj_import(&autosave_buf,&proj_tmp,length)))return 4;}ui.msg[0]=0;project_load(p[0]);if(str_len(ui.msg)!=6u||memcmp(ui.msg,"LOADED",6))return 6;song.g[G_SLOT]=(int16_t)(p[0]+1u);dw_changed();return 0;
+ case 30:return sr_dispatch(p,n,dw_reply,out);
  default:return 1;
  }
 }
 static void ed_drum_tick(void){
- if(fm1_ms-dw_activity_ms>120000u){if(save_backup.active)save_backup_cancel();dw_work_backup=0;dw_restore_slot=-1;}
+ if(fm1_ms-dw_activity_ms>120000u){if(sr.active)sr_invalidate(3);if(save_backup.active)save_backup_cancel();dw_work_backup=0;dw_restore_slot=-1;}
  if(dw_upload_slot>=0&&fm1_ms-dw_upload_ms>30000u)dw_upload_slot=-1;
 }
 static void ed_drum_handle(const uint8_t *a,uint32_t na){int decoded;uint32_t n,crc,reply_n=0,status;
  ed_drum_tick();dw_valid_request=0;dw_id=na>1?a[1]:0;dw_op=na>2?a[2]:0;
  if(na<4||a[0]!=1){dw_send(2,0,0);return;}
- if(a[1]>127||a[2]<1||a[2]>29||a[3]){dw_send(1,0,0);return;}
+ if(a[1]>127||a[2]<1||a[2]>30||a[3]){dw_send(1,0,0);return;}
  decoded=dw_unpack(a+4,na-4);if(decoded<4){dw_send(1,0,0);return;}n=(uint32_t)decoded-4;crc=dw_u32(dw_in+n);
  if(dw_frame_crc(0,dw_in,n)!=crc){dw_send(5,0,0);return;}
  dw_valid_request=1;
