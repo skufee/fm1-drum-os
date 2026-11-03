@@ -1,0 +1,6 @@
+import {createServer} from 'node:http';
+import {readFile,stat} from 'node:fs/promises';
+import {resolve,extname,sep} from 'node:path';
+const root=resolve('dist'),mount='/fm1-editor/';
+const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.woff2':'font/woff2','.woff':'font/woff','.bin':'application/octet-stream','.json':'application/json'};
+createServer(async(req,res)=>{try{if(req.method!=='GET'&&req.method!=='HEAD'){res.writeHead(405).end();return;}const url=new URL(req.url,'http://localhost');if(!url.pathname.startsWith(mount)){res.writeHead(404).end();return;}const local=decodeURIComponent(url.pathname.slice(mount.length))||'index.html',file=resolve(root,local);if(!file.startsWith(root+sep)){res.writeHead(403).end();return;}const info=await stat(file);if(!info.isFile()){res.writeHead(404).end();return;}const data=await readFile(file);res.writeHead(200,{'Content-Type':types[extname(file)]??'application/octet-stream','Cache-Control':'no-store'});res.end(req.method==='HEAD'?undefined:data);}catch{res.writeHead(404).end();}}).listen(4179,'127.0.0.1',()=>console.log('Read-only Pages-path test server http://127.0.0.1:4179/fm1-editor/'));
