@@ -6,7 +6,7 @@ import {EMBEDDED} from '../src/metadata.ts';
 import {crc32,le16,le32} from '../src/protocol.ts';
 import {exportLibrary} from '../src/library.ts';
 import {installMockMIDI} from './mock-midi.ts';
-const artifacts=resolve('test-results/evidence');mkdirSync(artifacts,{recursive:true});
+const artifacts=resolve('../../artifacts/release-1.0-prep/editor');mkdirSync(artifacts,{recursive:true});
 const source=(fill=0x22)=>{const bytes=new Uint8Array(256).fill(fill);return {id:55,name:'NEWWAV',rate:22050,frames:512,crc:crc32(bytes),adpcm:toBase64(bytes)};};
 function rawSlot(){const raw=new Uint8Array(81920).fill(255),h=new Uint8Array(480),data=new Uint8Array(256).fill(0x33);h.set(le32(0x504d5346));h.set(le16(1),4);h[6]=1;h.set(new TextEncoder().encode('OLDWAV  '),8);h.set(le32(data.length),16);h.set(le32(crc32(data)),20);h.set(le32(512),36);h.set(le32(511),44);h.set(le32(32768),48);h.set(le16(960),52);h[58]=127;raw.set(h);raw.set(data,512);return raw;}
 const nav=async(page:any)=>page.getByRole('navigation').getByRole('button',{name:/Samples/}).click();

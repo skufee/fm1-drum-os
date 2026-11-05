@@ -7,7 +7,7 @@ import {crc32,le32} from '../src/protocol.ts';
 import {wavPCM16} from '../src/audio.ts';
 import {projectRaw,projectReport,sampleBanks,sampleReport} from './nor-fixtures.ts';
 import {installMockMIDI} from './mock-midi.ts';
-const artifacts=resolve('test-results/evidence');mkdirSync(artifacts,{recursive:true});
+const artifacts=resolve('../../artifacts/physical-nor/editor');mkdirSync(artifacts,{recursive:true});
 const noSave=()=>{const b=new Uint8Array(20);b.set([2,3,7,0,5]);b.set(le32(0x856014),16);return Array.from(b);};
 const base={project:createProject(),embedded:[...EMBEDDED],userSlots:16,capacity:19968,permission:'prompt'};
 const connect=async(page:any)=>{await page.goto('./');await page.locator('[data-action="connect"]').first().click();await expect(page.locator('header')).toContainText('FM1 CONNECTED');};
