@@ -90,7 +90,7 @@ static void backup_sample(uint32_t slot){uint8_t p[8];uint32_t off;for(off=0;off
 int PROTOCOL_TEST_ENTRY(void){uint8_t p[DW_MAX],before_pad[64],meta[29],sample[256],chunk[261],id;uint32_t i,j,k,e,pr,fp;drum_fx_config_t fx;
  setvbuf(stdout,0,_IONBF,0);memset(nor,255,sizeof nor);host_tracks_init();drum_preset_select(0);quiet();
  assert(drum_sample_crc("123456789",9)==0xcbf43926u);
- p[0]=0;p[1]=0;assert(call(25,p,2)==2);assert(call(1,0,0)==0&&reply_n==64&&reply[2]==6&&reply[8]==55&&reply[9]==16);pass("capability handshake guards mutations; actual FL80 reply framing and header+payload CRC");
+ p[0]=0;p[1]=0;assert(call(25,p,2)==2);assert(call(1,0,0)==0&&reply_n==65u+sizeof(FM1_DRUM_ID)-1u&&reply[1]==2&&reply[2]==6&&reply[8]==55&&reply[9]==16);pass("capability handshake guards mutations; actual FL80 reply framing and header+payload CRC");
  assert(call(3,(uint8_t[]){7},1)==0&&reply_n==13);memcpy(p,reply,13);memcpy(before_pad,(const void *)drum_pad_edit,sizeof before_pad);
  p[1]=54;p[2]=81;p[3]=17;p[4]=1;p[5]=39;p[6]=43;p[7]=79;p[8]=45;dw_w32(p+9,0);assert(call(4,p,13)==0);assert(drum_custom_sample_ids[7]==54&&drum_pad_mix_get(7,1)==-47&&drum_pad_edit_get(7,DRUM_EDIT_START)==43);assert(!memcmp(before_pad,(const void *)drum_pad_edit,56));
  p[6]=p[7];assert(call(4,p,13)==1);p[6]=43;build(83,4,p,13);req[5]^=1;ed_drum_handle(req,req_n);assert(receive()==5&&drum_pad_edit_get(7,DRUM_EDIT_START)==43);p[1]=71;assert(call(4,p,13)==1);pass("PAD all fields, lane isolation, bounds, corrupt-request CRC rejects without mutation");

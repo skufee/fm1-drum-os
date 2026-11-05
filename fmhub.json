@@ -1,0 +1,10 @@
+{
+  "what": "An eight-pad drum sampler with 55 built-in sounds, 16 user sample slots, a 64-step sequencer, recording, lane and master effects, project autosave and a USB MIDI Web Editor.",
+  "author": "skufee",
+  "kinds": [
+    "drums"
+  ],
+  "editor": "https://skufee.github.io/fm1-drum-os/",
+  "color": "#F87905",
+  "image": "docs/card.png"
+}

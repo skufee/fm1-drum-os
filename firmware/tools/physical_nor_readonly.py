@@ -10,6 +10,17 @@ Use only after explicit owner permission for physical read-only diagnostics.
 from pathlib import Path
 import argparse,hashlib,json,struct,sys,time,zlib
 
+def caps_identity(b):
+    """Original64B CAPS or append-only revision2; never return a truncated new ID."""
+    if len(b)==64 and b[:2]==bytes([1,0]):
+        return b[56:64].split(b'\0')[0].decode('ascii')
+    if len(b)<65 or b[:2]!=bytes([1,2]) or not 8<=b[64]<=20 or len(b)!=65+b[64]:
+        raise ValueError('Incompatible CAPS identity extension')
+    identity=b[65:].decode('ascii')
+    if not identity.startswith('FM-1_') or not identity[5:].isascii() or not identity[5:].isdigit() or identity[:8].encode('ascii')!=b[56:64]:
+        raise ValueError('Invalid CAPS identity extension')
+    return identity
+
 def pack7(raw):
     out=bytearray()
     for off in range(0,len(raw),7):
@@ -64,7 +75,7 @@ def main():
                     return r[:-4]
             save();raise TimeoutError(f'No physical response op{op}; no write attempted')
         try:
-            caps=request(1);assert len(caps)==64 and caps[8]==55 and caps[9]==16 and caps[56:64]==b'FM-1_900'
+            caps=request(1);assert caps_identity(caps) in ('FM-1_900','FM-1_947','FM-1_1337') and caps[8]==55 and caps[9]==16
             summary['firmware']=caps[24:56].split(b'\0')[0].decode('ascii');summary['caps_hex']=caps.hex();print('PHYSICAL CAPS',summary['firmware'],flush=True)
             assert summary['firmware'].startswith('FM1 DRUM OS '),'Unexpected device; stop'
             state=request(2);summary['state_hex']=state.hex();assert len(state)==24 and not any(state[8:11]),'Transport/REC/ARM active: stop diagnostics, never send STOP'

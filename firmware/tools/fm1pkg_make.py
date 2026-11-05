@@ -18,6 +18,7 @@ All integrity checks in the format are CRC16 (poly 0x1021, init 0).
 """
 import argparse
 import os
+import re
 import struct
 from pathlib import Path
 
@@ -29,6 +30,9 @@ KEY = 0x980F
 FLASH_HDR = bytes.fromhex("20022f104cc900f00f001010a4ff4e5d0b41e0cd781dc856417fb367cf9f")
 UFW_CHIP = b"AC791N"
 SDK = None
+# Shared with the app, loader and fixed-size Drum CAPS reply.
+PRODUCT = re.search(r'^#define FM1_DRUM_ID "(FM-1_[0-9]+)"$',
+                    (Path(__file__).resolve().parents[1] / "firmware/src/drum_platform.h").read_text(encoding="utf-8"), re.M).group(1)
 
 
 def _crc_table():
@@ -193,7 +197,7 @@ def main():
     ap.add_argument("app", type=Path)
     ap.add_argument("ota", type=Path)
     ap.add_argument("out", type=Path)
-    ap.add_argument("--product", default="FM-1_900")
+    ap.add_argument("--product", default=PRODUCT)
     ap.add_argument("--key", type=lambda s: int(s, 0), default=KEY)
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
     a = ap.parse_args()

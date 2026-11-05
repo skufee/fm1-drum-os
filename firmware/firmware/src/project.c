@@ -22,6 +22,8 @@
  * Built on the host too (tests/project_test.c, -DPROJ_HOST): the part above the #ifndef
  * PROJ_HOST needs core.h, params.c (TP), drums.c (the lanes), the engines and trk_def_engine (ui.c). */
 #include "drum_record.h"
+#include "drum_platform.h"
+
 #define PROJ_MAGIC 0x46554E36u                 /* "FUN6": format 5 + the 2.6 parameters, nudge and condition in a byte */
 #define PROJ_MAGIC_V5 0x46554E35u              /* "FUN5": format 4 + per-step nudge, parameter locks, fill conditions (SLOOP 2.4) */
 #define PROJ_MAGIC_V4 0x46554E34u              /* "FUN4": four tracks, P_COUNT parameters each, 10-byte steps; read only */
@@ -1218,7 +1220,7 @@ static void persist_boot(void)                    /* before settings_init / pane
     persist_t p;
     uint32_t f = irq_save();
     save_flash_jedec = FL_FAR(fl_jedec_ram)();
-    flash_ok = save_flash_jedec == 0x856014u;       /* the expected 1 MiB part, else stay RAM-only */
+    flash_ok = fm1_flash_known_id(save_flash_jedec);       /* the expected 1 MiB part, else stay RAM-only */
     irq_restore(f);
     if (!flash_ok)
         return;

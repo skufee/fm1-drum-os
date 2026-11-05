@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Drum application protocol v1 in legacy FL SysEx command80. No transport/HAL. */
 #include "drum_version.h"
+#include "drum_platform.h"
 #define DW_MAX 384u
 #define DW_CONFIRM 0x5au
 static uint8_t dw_in[DW_MAX],dw_reply[DW_MAX],dw_cache[600],dw_transfer[DRUMREC6_SIZE];
@@ -78,7 +79,7 @@ static uint32_t dw_dispatch(uint32_t op,const uint8_t *p,uint32_t n,uint32_t *ou
     op==19u||(op>=20u&&op<=25u)||(op==26u&&n&&p[0])||op==28u||op==29u||
     (op==27u&&n&&p[0]<3u)))return 3;
  switch(op){
- case 1: if(n)return 1;memset(dw_reply,0,64);dw_reply[0]=1;dw_reply[2]=6;dw_reply[3]=1;dw_reply[4]=8;dw_reply[5]=6;dw_reply[6]=6;dw_reply[7]=4;dw_reply[8]=55;dw_reply[9]=DRUM_USER_SAMPLE_COUNT;dw_reply[10]=64;dw_reply[11]=8;dw_reply[12]=6;dw_reply[13]=63;dw_reply[14]=7;dw_w16(dw_reply+16,256);dw_w16(dw_reply+18,DRUMREC6_SIZE);dw_w32(dw_reply+20,DRUM_USER_CAPACITY);memcpy(dw_reply+24,FM1_DRUM_FIRMWARE,sizeof(FM1_DRUM_FIRMWARE)-1u);memcpy(dw_reply+56,"FM-1_900",8);dw_ready=1;*out=64;return 0;
+ case 1: if(n)return 1;memset(dw_reply,0,65u+sizeof(FM1_DRUM_ID)-1u);dw_reply[0]=1;dw_reply[1]=2;dw_reply[2]=6;dw_reply[3]=1;dw_reply[4]=8;dw_reply[5]=6;dw_reply[6]=6;dw_reply[7]=4;dw_reply[8]=55;dw_reply[9]=DRUM_USER_SAMPLE_COUNT;dw_reply[10]=64;dw_reply[11]=8;dw_reply[12]=6;dw_reply[13]=63;dw_reply[14]=7;dw_w16(dw_reply+16,256);dw_w16(dw_reply+18,DRUMREC6_SIZE);dw_w32(dw_reply+20,DRUM_USER_CAPACITY);memcpy(dw_reply+24,FM1_DRUM_FIRMWARE,sizeof(FM1_DRUM_FIRMWARE)-1u);memcpy(dw_reply+56,FM1_DRUM_ID,8);dw_reply[64]=(uint8_t)(sizeof(FM1_DRUM_ID)-1u);memcpy(dw_reply+65,FM1_DRUM_ID,sizeof(FM1_DRUM_ID)-1u);dw_ready=1;*out=65u+sizeof(FM1_DRUM_ID)-1u;return 0;
  case 2: if(n)return 1;fm1_irq_off();drumrec3_capture_live(&drumrec3_buf);fm1_irq_on();if(!drumrec6_encode(st_buf,sizeof st_buf,&drumrec3_buf))return 8;
  memset(dw_reply,0,24);dw_w16(dw_reply,DRUMREC6_SIZE);dw_reply[2]=(uint8_t)autosave_status();dw_reply[3]=save_diag.code;dw_w32(dw_reply+4,st_crc32(st_buf,DRUMREC6_SIZE)^(uint32_t)drum_qtz_strength_get());dw_reply[8]=song.playing;dw_reply[9]=song.rec;dw_reply[10]=rec_wait;dw_reply[11]=(uint8_t)clamp(song.g[G_SLOT]-1,0,3);dw_reply[12]=drum_pad_sel;dw_reply[13]=(uint8_t)drum_kit_source_get();dw_w16(dw_reply+14,song.g[G_BPM]);dw_reply[16]=(uint8_t)song.g[G_SWING];dw_reply[17]=drum_qtz_strength_get();dw_reply[18]=(uint8_t)trk_len(TDRUM);dw_reply[19]=rec_mode_get();dw_reply[20]=rec_grid_get();dw_reply[21]=rec_count_get();dw_reply[22]=(uint8_t)song.g[G_CLOCK];for(i=0;i<4;i++)if(project_used(i))dw_reply[23]|=(uint8_t)(1u<<i);*out=24;return 0;
  case 3: if(n!=1||p[0]>=8)return 1;dw_pad_out(p[0]);*out=13;return 0;

@@ -19,6 +19,8 @@ npm run test:browser
 
 Node 24.6+ is required. Host C tests additionally require `gcc` on PATH; they use explicit peripheral/project-service doubles and do not establish physical USB/NOR acceptance. Browser tests use installed Chrome on Windows; on Linux first run `npx playwright install --with-deps chromium`.
 
-The firmware build outputs `firmware/build/felucca.{bin,elf,fwsc}`. Internal output names preserve the upstream tooling; the application reports version `1.0.0-rc.2` and keeps hardware package identity `FM-1_900`. Do not use the upstream `--release` option to change that identity.
+The firmware build outputs `firmware/build/felucca.{bin,elf,fwsc}`. Internal output names preserve the upstream tooling; the application reports version `1.0.0-rc.2` and keeps hardware package identity `FM-1_1337`. Do not use the upstream `--release` option to change that identity.
 
 Normal public builds require no WAVs: `assets/embedded/felucca_samples.h` is the exact checksummed generated bank. `tools/sync_embedded.py --editor ../drum-os-editor` verifies firmware/browser bytes and LCD waveform metadata after a build. If deliberately regenerating an authorized bank, set `FM1_SAMPLE_SOURCE` to the external 55-WAV directory, run `python tools/gen_samples.py build/gen/felucca_samples.h`, then `tools/sync_embedded.py --update --distributable --editor ../drum-os-editor`. Do not commit WAVs or gain-normalize/change IDs casually.
+
+The owner confirmed identity FM-1_1337. Physical update-transition acceptance remains pending; CAPS revision2 requires the updated editor. See [the candidate checklist](FIRMWARE_HUB.md).

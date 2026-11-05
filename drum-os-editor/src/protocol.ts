@@ -27,3 +27,11 @@ export class MidiTransport {
 }
 export function verifyProjectWire(bytes:Uint8Array):number {if(bytes.length<16||bytes.length>3840)throw Error('Project size invalid');const magic=new TextDecoder().decode(bytes.slice(0,4)),v=u16(bytes,4);const lengths=[0,752,1264,1533,1759,1799,1959];if(magic!==`DRM${v}`||v<1||v>6||bytes.length!==lengths[v]||u16(bytes,6)!==16||u32(bytes,8)!==bytes.length-16||u32(bytes,12)!==crc32(bytes.slice(16)))throw Error('Project format, length or CRC invalid');return v;}
 export function ascii(bytes:Uint8Array):string{return new TextDecoder().decode(bytes).split('\0')[0].replace(/[^ -~]/g,'?');}
+/** CAPS revision 0 is the original64B. Revision2 appends length+full identity. */
+export function capsIdentity(b:Uint8Array):string {
+ if(b[0]===1&&b.length===64&&b[1]===0)return ascii(b.slice(56,64));
+ if(b[0]!==1||b.length<65||b[1]!==2||b[64]<8||b[64]>20||b.length!==65+b[64])throw Error('Incompatible CAPS identity extension');
+ const id=ascii(b.slice(65));
+ if(id.length!==b[64]||!/^FM-1_[0-9]{3,15}$/.test(id)||id.slice(0,8)!==ascii(b.slice(56,64)))throw Error('Invalid CAPS identity extension');
+ return id;
+}

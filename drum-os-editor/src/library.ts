@@ -34,6 +34,7 @@ export function validateLibrary(lib:Library):Library {
  validateSources(lib.localSources);
  const d=lib.deviceSnapshot;if(!d)return lib;
  if(typeof d.identity!=='string'||d.identity.length>64||typeof d.firmware!=='string'||d.firmware.length>64||(d.userSlots!==4&&d.userSlots!==16)||!Array.isArray(d.slots)||d.slots.length!==d.userSlots)throw Error('Invalid device library metadata');
+ if(['FM-1_900','FM-1_947','FM-1_1337'].includes(d.identity)&&!d.firmware.startsWith('FM1 DRUM OS '))throw Error('Library device family differs; archive is not identified as DRUM OS');
  const raws:Uint8Array[]=[];
  for(let i=0;i<d.userSlots;i++){
   const s=d.slots[i],m=s?.metadata;
@@ -99,7 +100,10 @@ export function bindLibraryRestore(project:Project,lib:Library,results:LibraryRe
  * can refuse a slot; that refusal is reported without destructive cleanup. */
 export async function restoreLibrary(device:Device,lib:Library,confirmReplace:(id:number,backup:Uint8Array)=>Promise<boolean>,progress=(n:number)=>{}):Promise<LibraryRestoreResult[]> {
  validateLibrary(lib);const state=await device.state();if(state.playing||state.recording||state.armed)throw Error('STOP and disarm before restoring a sample library');
- if(lib.deviceSnapshot&&device.caps?.identity&&lib.deviceSnapshot.identity!==device.caps.identity)throw Error('Library device family differs; import locally without writing the device');
+ if(lib.deviceSnapshot&&device.caps?.identity){
+  const ids=['FM-1_900','FM-1_947','FM-1_1337'];
+  if(!ids.includes(lib.deviceSnapshot.identity)||!ids.includes(device.caps.identity)||!lib.deviceSnapshot.firmware.startsWith('FM1 DRUM OS ')||!device.caps.firmware.startsWith('FM1 DRUM OS '))throw Error('Library device family differs; import locally without writing the device');
+ }
  const sources=librarySources(lib,false),results:LibraryRestoreResult[]=[],ids=new Set(sources.map(s=>s.id));
  for(const entry of lib.deviceSnapshot?.slots??[]){if(ids.has(55+entry.slot))continue;const raw=fromBase64(entry.raw);if(raw.subarray(0,entry.slot<4?20480:raw.length).some(v=>v!==255))results.push({id:55+entry.slot,status:'skipped',detail:'Raw backup retained only: unknown, corrupt, multizone or unsupported source representation'});}
  for(let i=0;i<sources.length;i++){

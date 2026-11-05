@@ -10,7 +10,7 @@ Requires mido/python-rtmidi (optional --deps directory). Keep plans/backups priv
 """
 from pathlib import Path
 import argparse,hashlib,json,struct,sys,time,zlib
-from physical_nor_readonly import pack7,unpack7
+from physical_nor_readonly import pack7,unpack7,caps_identity
 BANKS=(0xa0000,0xb4000,0xc8000,0xe7000)
 def sha(b):return hashlib.sha256(b).hexdigest()
 def geometry(kind,target,copy):
@@ -29,7 +29,7 @@ class Link:
         if len(i)!=1 or len(o)!=1:raise RuntimeError('Missing/ambiguous FM1 MIDI pair')
         self.inp=mido.open_input(i[0]);self.out=mido.open_output(o[0],autoreset=False)
         try:
-            caps=self.request(1);assert len(caps)==64 and caps[56:64]==b'FM-1_900' and caps[14]&4,'Firmware lacks bounded raw rollback'
+            caps=self.request(1);assert caps_identity(caps) in ('FM-1_900','FM-1_947','FM-1_1337') and caps[14]&4,'Firmware lacks bounded raw rollback'
             self.firmware=caps[24:56].split(b'\0')[0].decode('ascii');assert self.firmware.startswith('FM1 DRUM OS ')
             state=self.request(2);assert len(state)==24 and not any(state[8:11]),'STOP/disarm required; tool never sends STOP'
             return self
