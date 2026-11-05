@@ -6,7 +6,11 @@ FM1 DRUM OS turns the FM-1 into a compact, hands-on drum machine built around sa
 
 **[Web Editor](https://skufee.github.io/fm1-drum-os/)** · **[Download firmware](https://github.com/skufee/fm1-drum-os/releases)** · **[Firmware update guide](docs/FIRMWARE_UPDATE.md)** · **[Report an issue](https://github.com/skufee/fm1-drum-os/issues)**
 
-> **Release status:** 1.0.0 release candidate. Project autosave and the user-sample workflow have been tested on physical hardware. Back up your projects and samples before updating; custom firmware is installed at your own risk.
+> **Current release:** v1.0.0 — Initial Release.
+>
+> Project saving, custom sample uploads and playback have been
+> tested on physical M-VAVE FM-1 hardware.
+> Back up your projects and user samples before updating.
 
 ## Features
 
@@ -90,6 +94,6 @@ For native firmware build requirements and tests, see [BUILD.md](docs/BUILD.md).
 
 FM1 DRUM OS is an independent, drum-focused adaptation of **[SLOOP](https://github.com/isod89/sloop-fm1)** and the **Felucca** firmware work by Leo Kuroshita / Hügelton Instruments. Thanks to the upstream developers and the wider FM-1 community.
 
-Firmware/editor source is distributed under **[GPL-3.0-only](LICENSE)**. Third-party components, fonts and embedded audio have their own notices and permissions; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [Audio distribution notice](docs/AUDIO_NOTICE.md).
+Firmware/editor source is distributed under **[GPL-3.0-only](LICENSE)**. Third-party components, fonts and embedded audio have their own notices and permissions; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 *This is an independent community firmware project and is not an official M-VAVE product.*
