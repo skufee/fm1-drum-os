@@ -1,7 +1,7 @@
 # FM1 DRUM OS
 
 **A drum-focused sampler and sequencer for the M-VAVE FM-1.**
-
+<img width="1448" height="1086" alt="Студийный синтезатор M‑VAVE FM‑1 с интерфейсом драм-машины" src="https://github.com/user-attachments/assets/df87ebe0-6ccd-4caf-89cc-1c98ceb015eb" />
 FM1 DRUM OS turns the FM-1 into a compact, hands-on drum machine built around sampling, unquantized playing, expressive sequencing and sound shaping. Make a beat on the hardware, adjust individual drum lanes, or use the browser editor to manage kits, patterns and your own samples.
 
 **[Web Editor](https://skufee.github.io/fm1-drum-os/)** · **[Download firmware](https://github.com/skufee/fm1-drum-os/releases)** · **[Firmware update guide](docs/FIRMWARE_UPDATE.md)** · **[Report an issue](https://github.com/skufee/fm1-drum-os/issues)**
