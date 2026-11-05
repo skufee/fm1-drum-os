@@ -9,7 +9,6 @@ FM1 DRUM OS is a direct GPL-3.0-only adaptation of SLOOP2.6/Felucca. Original so
 | Terminus bitmap font | SIL OFL1.1, `firmware/assets/fonts/Terminus-LICENSE.txt` |
 | Fukiai icon atlas, Hügelton Instruments | MIT, `docs/licenses/Fukiai-MIT.txt`; original notice retained even though the old web font/site is not included |
 | Barlow Condensed / IBM Plex Mono | OFL notices in `drum-os-editor/public/licenses/`; exact @fontsource versions locked |
-| Final55-sample embedded bank | Owner-confirmed distribution permission, `docs/AUDIO_NOTICE.md`; no CC0 claim, original WAVs excluded |
 | JieLi AC79 SDK/SPL/package resources | External dependency, SDK Apache notice in `docs/licenses/AC79-SDK-LICENSE.txt`; SDK/toolchain binaries not included in this repository |
 
 The MSFA notice mentions historical files not shipped in this drum-only subset; its table provenance remains relevant. The SDK/compiler remain separately obtained dependencies under their original terms. The package identity/encryption constants in build tools are public format constants, not account credentials. npm dependencies retain their respective package licenses and pinned integrity entries; no node_modules or vendor SDK/compiler is checked in.
