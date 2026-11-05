@@ -27,7 +27,7 @@ FM1 DRUM OS turns the FM-1 into a compact, hands-on drum machine built around sa
 - **USB MIDI / SysEx** integration with a browser-based editor.
 
 The emphasis is on *playing* rather than programming: record loosely, tighten the groove only as much as you want, and make the drums your own.
-
+<img width="1672" height="941" alt="FM1 Drum OS_ обзор функций" src="https://github.com/user-attachments/assets/9f8c8153-452c-47ad-aa9b-6707942667f7" />
 ## Web Editor
 
 **[Open FM1 DRUM OS Web Editor](https://skufee.github.io/fm1-drum-os/)**
