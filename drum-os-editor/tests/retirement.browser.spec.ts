@@ -9,7 +9,7 @@ import {sampleBanks} from './nor-fixtures.ts';
 import {installMockMIDI} from './mock-midi.ts';
 const artifacts=resolve('../../artifacts/storage-recovery/editor');mkdirSync(artifacts,{recursive:true});
 const base={project:createProject(),embedded:[...EMBEDDED],userSlots:16,capacity:19968,permission:'prompt',norDiagnostics:true,retirement:true,retirementRawPair:Array.from(retirementPair()),retirementSeed:Array.from(retirementSeed())};
-const connect=async(page:any)=>{await page.goto('./');await page.locator('[data-action="connect"]').first().click();await expect(page.locator('header')).toContainText('FM1 CONNECTED');};
+const connect=async(page:any)=>{await page.goto('./?service=1');await page.locator('[data-action="connect"]').first().click();await expect(page.locator('header')).toContainText('FM1 CONNECTED');};
 const commits=()=>{return (window as any).__fm1Mock.calls.filter((c:any)=>c.op===30&&[2,4].includes(c.payload[0]));};
 
 test('journal retirement downloads complete raw/seed archive, shows one exact range, and requires typed separate confirmation',async({page})=>{

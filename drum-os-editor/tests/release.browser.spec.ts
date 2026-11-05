@@ -47,7 +47,7 @@ test('offline full library import/export retainsraw16-slotbytes and makes no dev
  const banks=Array.from({length:4},()=>new Uint8Array(81920).fill(255));
  const lib={localSources:[source()],deviceSnapshot:{identity:'FM-1_900',firmware:'FM1 TEST',userSlots:16 as const,slots:Array.from({length:16},(_,slot)=>{const raw=slot<4?banks[slot]:banks[slot%4].slice(Math.floor(slot/4)*20480,(Math.floor(slot/4)+1)*20480);return {slot,raw:toBase64(raw),crc32:crc32(raw),metadata:{id:55+slot,flags:0,category:5,name:'USER'+(slot+1),frames:0,rate:0,crc:0,capacity:19968,nz:0}};})}};
  await page.goto('./');await nav(page);page.on('dialog',d=>d.accept());await page.locator('[data-action="library-import"]').click();await page.locator('#library-file').setInputFiles({name:'all.fm1lib.json',mimeType:'application/json',buffer:Buffer.from(exportLibrary(lib))});
- await expect(page.locator('#status')).toContainText('Library imported locally');await expect(page.getByText('1 local sources / 16 raw device slots retained.',{exact:false})).toBeVisible();
+ await expect(page.locator('#status')).toContainText('Library imported locally');await expect(page.getByText('1 local sources · 16 device slots in imported backup.',{exact:false})).toBeVisible();
  const [download]=await Promise.all([page.waitForEvent('download'),page.locator('[data-action="library-export"]').click()]);const file=resolve(artifacts,'roundtrip-library.fm1lib.json');await download.saveAs(file);expect(JSON.parse(readFileSync(file,'utf8')).library).toEqual(lib);
  await page.screenshot({path:resolve(artifacts,'library-import-export.png'),fullPage:true});
 });
